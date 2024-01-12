@@ -17,6 +17,7 @@
 import React, {
   ComponentType,
   Fragment,
+  PropsWithChildren,
   ReactNode,
   useContext,
   useState,
@@ -26,6 +27,7 @@ import {
   createAppRootWrapperExtension,
   createExtension,
   createExtensionInput,
+  createRouterExtension,
   createSignInPageExtension,
 } from '@backstage/frontend-plugin-api';
 import {
@@ -46,6 +48,10 @@ export const AppRoot = createExtension({
   name: 'root',
   attachTo: { id: 'app', input: 'root' },
   inputs: {
+    router: createExtensionInput(
+      { component: createRouterExtension.componentDataRef },
+      { singleton: true, optional: true },
+    ),
     signInPage: createExtensionInput(
       { component: createSignInPageExtension.componentDataRef },
       { singleton: true, optional: true },
@@ -82,7 +88,10 @@ export const AppRoot = createExtension({
 
     return {
       element: (
-        <AppRouter SignInPageComponent={inputs.signInPage?.output.component}>
+        <AppRouter
+          SignInPageComponent={inputs.signInPage?.output.component}
+          RouterComponent={inputs.router?.output.component}
+        >
           {content}
         </AppRouter>
       ),
@@ -135,12 +144,18 @@ function SignInPageWrapper({
 export interface AppRouterProps {
   children?: ReactNode;
   SignInPageComponent?: ComponentType<SignInPageProps>;
+  RouterComponent?: ComponentType<PropsWithChildren<{}>>;
+}
+
+function DefaultRouter(props: PropsWithChildren<{}>) {
+  const configApi = useApi(configApiRef);
+  const basePath = getBasePath(configApi);
+  return <BrowserRouter basename={basePath}>{props.children}</BrowserRouter>;
 }
 
 /**
  * App router and sign-in page wrapper.
  *
- * @public
  * @remarks
  *
  * The AppRouter provides the routing context and renders the sign-in page.
@@ -149,7 +164,11 @@ export interface AppRouterProps {
  * the app, while providing routing and route tracking for the app.
  */
 export function AppRouter(props: AppRouterProps) {
-  const { children, SignInPageComponent } = props;
+  const {
+    children,
+    SignInPageComponent,
+    RouterComponent = DefaultRouter,
+  } = props;
 
   const configApi = useApi(configApiRef);
   const basePath = getBasePath(configApi);
@@ -185,15 +204,15 @@ export function AppRouter(props: AppRouterProps) {
     );
 
     return (
-      <BrowserRouter basename={basePath}>
+      <RouterComponent>
         <RouteTracker routeObjects={routeObjects} />
         {children}
-      </BrowserRouter>
+      </RouterComponent>
     );
   }
 
   return (
-    <BrowserRouter basename={basePath}>
+    <RouterComponent>
       <RouteTracker routeObjects={routeObjects} />
       <SignInPageWrapper
         component={SignInPageComponent}
@@ -201,6 +220,6 @@ export function AppRouter(props: AppRouterProps) {
       >
         {children}
       </SignInPageWrapper>
-    </BrowserRouter>
+    </RouterComponent>
   );
 }
